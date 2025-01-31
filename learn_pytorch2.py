@@ -41,3 +41,8 @@ print(f"The tensor after multiplying two tensors: {tensor4}")
 # multiply a tensor by a scalar
 tensor5 = tensor1 * 2
 print(f"The tensor after multiplying a tensor by a scalar: {tensor5}")
+
+# matrix multiplication
+tensor6 = torch.matmul(tensor1, tensor2)
+print(f"The tensor after matrix multiplication: {tensor6}")
+
