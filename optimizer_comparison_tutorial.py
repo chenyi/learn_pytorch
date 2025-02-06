@@ -2,11 +2,12 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import numpy as np
+from torch.utils.data import Dataset, DataLoader, TensorDataset
 
 """
 本教程目的：
 1. 理解不同优化器的工作方式和性能差异
-2. 学习如何实现和比较不同的优化器
+2. 学习如何使用DataLoader实现小批量训练
 3. 观察优化器对训练过程的影响
 4. 理解如何可视化和分析训练结果
 """
@@ -52,35 +53,40 @@ class SimpleNet(nn.Module):
         return self.net(x)
 
 # 3. 训练函数
-def train_model(model, optimizer, x_train, y_train, epochs=1000):
+def train_model(model, optimizer, train_loader, epochs=1000):
     """
-    训练模型的函数
+    使用DataLoader进行小批量训练
     
     参数：
     - model: 要训练的神经网络模型
     - optimizer: 使用的优化器
-    - x_train, y_train: 训练数据
+    - train_loader: 数据加载器，提供小批量数据
     - epochs: 训练轮数
-    
-    返回：
-    - losses: 训练过程中的损失历史
-    
-    目的：展示完整的训练循环和损失记录过程
     """
-    criterion = nn.MSELoss()  # 均方误差损失函数
+    criterion = nn.MSELoss()
     losses = []
     
     for epoch in range(epochs):
-        optimizer.zero_grad()         # 清除现有梯度
-        output = model(x_train)       # 前向传播
-        loss = criterion(output, y_train)  # 计算损失
-        loss.backward()               # 反向传播
-        optimizer.step()              # 更新参数
-        losses.append(loss.item())    # 记录损失
+        epoch_loss = 0
+        batch_count = 0
         
-        # 打印训练进度
+        # 每个epoch都会打乱数据顺序
+        for batch_x, batch_y in train_loader:
+            optimizer.zero_grad()
+            output = model(batch_x)
+            loss = criterion(output, batch_y)
+            loss.backward()
+            optimizer.step()
+            
+            epoch_loss += loss.item()
+            batch_count += 1
+        
+        # 计算每个epoch的平均损失
+        avg_loss = epoch_loss / batch_count
+        losses.append(avg_loss)
+        
         if (epoch + 1) % 200 == 0:
-            print(f'Epoch [{epoch+1}/{epochs}], Loss: {loss.item():.4f}')
+            print(f'Epoch [{epoch+1}/{epochs}], Average Loss: {avg_loss:.4f}')
     
     return losses
 
@@ -96,6 +102,16 @@ def compare_optimizers():
     """
     # 生成训练数据
     x_train, y_train = generate_data()
+    
+    # 创建数据集和数据加载器
+    train_dataset = TensorDataset(x_train, y_train)
+    train_loader = DataLoader(
+        dataset=train_dataset,
+        batch_size=32,          # 小批量大小
+        shuffle=True,           # 随机打乱
+        num_workers=0,          # 单进程加载
+        drop_last=True          # 丢弃不完整的批次
+    )
     
     # 定义要比较的优化器
     optimizers = {
@@ -114,7 +130,7 @@ def compare_optimizers():
         print(f"\nTraining with {opt_name}")
         model = SimpleNet()
         optimizer = opt_class(model.parameters())
-        losses = train_model(model, optimizer, x_train, y_train)
+        losses = train_model(model, optimizer, train_loader)
         all_losses[opt_name] = losses
         trained_models[opt_name] = model
     
@@ -123,8 +139,8 @@ def compare_optimizers():
     for opt_name, losses in all_losses.items():
         plt.plot(losses, label=opt_name)
     plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.title('Training Loss with Different Optimizers')
+    plt.ylabel('Average Loss')
+    plt.title('Training Loss with Different Optimizers (Mini-batch)')
     plt.legend()
     plt.yscale('log')  # 使用对数尺度更好地显示损失变化
     plt.grid(True)
