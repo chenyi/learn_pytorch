@@ -40,16 +40,26 @@ run_single_gpu() {
 
 # 单机多卡模式
 run_multi_gpu() {
-    local num_gpus=$1
+    local requested_gpus=$1
+    
+    # 在PAI-DLC环境中，优先使用环境变量中的配置
+    local num_gpus=${WORLD_SIZE:-$requested_gpus}  # 如果WORLD_SIZE存在就用它，否则用命令行参数
+    
     if [ $num_gpus -gt $AVAILABLE_GPUS ]; then
         echo "Error: Requested $num_gpus GPUs but only $AVAILABLE_GPUS available"
         exit 1
     fi
     
     # 设置分布式训练需要的环境变量
-    export MASTER_ADDR="localhost"
-    export MASTER_PORT="12355"
+    export MASTER_ADDR=${MASTER_ADDR:-"localhost"}
+    export MASTER_PORT=${MASTER_PORT:-"12355"}
     export WORLD_SIZE=$num_gpus
+    
+    echo "Running multi-GPU training with:"
+    echo "Number of GPUs: $num_gpus"
+    echo "MASTER_ADDR: $MASTER_ADDR"
+    echo "MASTER_PORT: $MASTER_PORT"
+    echo "WORLD_SIZE: $WORLD_SIZE"
     
     CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((num_gpus-1))) python dist_train.py \
         --distributed_mode multi_gpu \
