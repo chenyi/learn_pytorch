@@ -95,7 +95,21 @@ def parse_args():
     return parser.parse_args()
 
 def setup_distributed(rank, world_size, args):
-    """设置分布式训练环境"""
+    """设置分布式训练环境
+    
+    Args:
+        rank (int): 当前进程的全局rank
+        world_size (int): 总GPU数量
+        args: 训练参数
+    
+    环境变量：
+        MASTER_ADDR: master节点地址
+        MASTER_PORT: 通信端口
+        RANK: 当前进程的全局rank
+        LOCAL_RANK: 本节点上的GPU序号
+        WORLD_SIZE: 总GPU数量
+        PET_NNODES: 总节点数
+    """
     # 确保环境变量已设置
     if not os.environ.get('MASTER_ADDR'):
         os.environ['MASTER_ADDR'] = 'localhost'
@@ -121,20 +135,17 @@ def cleanup():
     dist.destroy_process_group()
 
 def get_cifar10_loaders(world_size, rank, args):
-    """
-    准备CIFAR10数据集的数据加载器
+    """准备CIFAR10数据集的分布式数据加载器
     
-    分布式数据加载流程：
-    1. 定义数据增强和预处理
-    2. 创建训练和测试数据集
-    3. 使用DistributedSampler划分数据
-    4. 创建DataLoader进行批处理
+    数据分发策略：
+    - 使用DistributedSampler确保数据不重叠
+    - 每个GPU获取不同的数据批次
+    - 支持动态调整batch size
     
-    数据并行示意图：
-    进程0 (GPU0) ─→ 数据批次 [0, 4, 8, ...]
-    进程1 (GPU1) ─→ 数据批次 [1, 5, 9, ...]
-    进程2 (GPU2) ─→ 数据批次 [2, 6, 10, ...]
-    进程3 (GPU3) ─→ 数据批次 [3, 7, 11, ...]
+    Args:
+        world_size (int): 总GPU数量
+        rank (int): 当前进程的rank
+        args: 包含batch_size等参数
     """
     # 数据增强和预处理
     transform_train = transforms.Compose([
@@ -209,25 +220,24 @@ def evaluate(model, test_loader, criterion, device):
     return avg_loss, accuracy
 
 def train(rank, world_size, args):
-    """
-    主训练函数，每个进程执行一份
+    """主训练循环
     
     训练流程：
     1. 初始化分布式环境
     2. 创建模型和优化器
-    3. 加载数据
-    4. 训练循环：前向传播→反向传播→梯度同步→参数更新
+    3. 准备数据加载器
+    4. 训练循环：
+       - 前向传播
+       - 计算损失
+       - 反向传播
+       - 梯度同步(AllReduce)
+       - 参数更新
     5. 定期评估和保存模型
     
-    梯度同步示意图：
-    GPU0 梯度   GPU1 梯度   GPU2 梯度   GPU3 梯度
-       ↓           ↓           ↓           ↓
-    ┌─────────────────── AllReduce ────────────────┐
-    ↓           ↓           ↓           ↓          │
-    平均梯度    平均梯度    平均梯度    平均梯度   │
-    ↓           ↓           ↓           ↓          │
-    参数更新    参数更新    参数更新    参数更新   │
-    └──────────────────────────────────────────────┘
+    Args:
+        rank (int): 当前进程的rank
+        world_size (int): 总GPU数量
+        args: 训练参数
     """
     # 设置分布式环境
     setup_distributed(rank, world_size, args)

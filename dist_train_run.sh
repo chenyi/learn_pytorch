@@ -1,5 +1,25 @@
 #!/bin/bash
 
+# 训练参数说明：
+# BATCH_SIZE: 每个GPU上的批次大小
+# LEARNING_RATE: 学习率
+# EPOCHS: 训练轮数
+# WEIGHT_DECAY: 权重衰减系数
+# PRINT_FREQ: 打印频率
+# DATA_DIR: 数据集路径
+# SAVE_DIR: 模型保存路径
+
+# 运行模式：
+# single: 单GPU训练
+# multi: 单机多卡训练
+# distributed: 多机多卡训练
+
+# 环境变量处理：
+# LOCAL_RANK: 本地GPU编号
+# NUM_NODES: 总节点数
+# WORLD_SIZE: 总GPU数量
+# RANK: 全局进程编号
+
 # 检查参数
 if [ $# -lt 1 ]; then
     echo "Usage: $0 {single|multi|distributed} [num_gpus|node_rank]"
@@ -25,13 +45,9 @@ PRINT_FREQ=50
 DATA_DIR="/mnt/data10/datasets"
 SAVE_DIR="/mnt/data10/model_checkpoints"
 
-# 设置工作目录
-WORK_DIR="/mnt/data10/chenyi/learn_pytorch"
-cd $WORK_DIR
-
 # 单机单卡模式
 run_single_gpu() {
-    CUDA_VISIBLE_DEVICES=0 python ${WORK_DIR}/dist_train.py \
+    CUDA_VISIBLE_DEVICES=0 python dist_train.py \
         --distributed_mode single_gpu \
         --batch_size $BATCH_SIZE \
         --learning_rate $LEARNING_RATE \
@@ -59,13 +75,15 @@ run_distributed() {
     echo "NUM_NODES: $NUM_NODES"
     echo "PET_NNODES: $PET_NNODES"
     echo "Available GPUs: $AVAILABLE_GPUS"
-    echo "Working Directory: $WORK_DIR"
     
     # 使用本地GPU的序号
     export CUDA_VISIBLE_DEVICES=$LOCAL_RANK
     
+    # 获取当前脚本所在目录
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+    
     # 使用完整路径运行Python脚本
-    python ${WORK_DIR}/dist_train.py \
+    python ${SCRIPT_DIR}/dist_train.py \
         --distributed_mode multi_node \
         --batch_size $BATCH_SIZE \
         --learning_rate $LEARNING_RATE \
@@ -82,7 +100,7 @@ case "$MODE" in
         run_single_gpu
         ;;
     "multi"|"distributed")
-        run_distributed $PARAM
+        run_distributed
         ;;
     *)
         echo "Invalid mode. Use: single, multi, or distributed"
