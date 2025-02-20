@@ -37,11 +37,11 @@ PARAM=${2:-0}  # 第二个参数：multi模式下表示GPU数量，distributed�
 AVAILABLE_GPUS=$(nvidia-smi --query-gpu=gpu_name --format=csv,noheader | wc -l)
 
 # 基础训练参数
-BATCH_SIZE=128
-LEARNING_RATE=0.001
-EPOCHS=100
-WEIGHT_DECAY=0.0001
-PRINT_FREQ=50
+BATCH_SIZE=${BATCH_SIZE:-128}
+LEARNING_RATE=${LEARNING_RATE:-0.001}
+EPOCHS=${EPOCHS:-100}
+WEIGHT_DECAY=${WEIGHT_DECAY:-0.0001}
+PRINT_FREQ=${PRINT_FREQ:-50}
 DATA_DIR="/mnt/data10/datasets"
 SAVE_DIR="/mnt/data10/model_checkpoints"
 
