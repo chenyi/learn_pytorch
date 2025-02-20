@@ -1,0 +1,14 @@
+# 训练配置
+batch_size: 32
+learning_rate: 0.01
+epochs: 5
+
+# 分布式训练模式: single_gpu, multi_gpu, multi_node
+distributed_mode: "single_gpu"
+
+# 分布式训练配置
+master_addr: "localhost"
+master_port: "12355"
+
+# 模型保存配置
+save_dir: "/mnt/data10/model_checkpoints" 
