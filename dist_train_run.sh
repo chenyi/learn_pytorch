@@ -60,11 +60,15 @@ run_single_gpu() {
 
 # 多机多卡/单机多卡模式统一处理
 run_distributed() {
-    local node_rank=$1
-    
     # 设置缺失的环境变量
     export NUM_NODES=${PET_NNODES:-1}  # 使用PET_NNODES，如果不存在则默认为1
-    export LOCAL_RANK=${LOCAL_RANK:-$(($RANK % $AVAILABLE_GPUS))}
+    
+    # 对于单机多卡，不需要设置RANK，让PyTorch自动处理
+    # 对于多机多卡，使用环境变量中的RANK
+    if [ -n "$RANK" ]; then  # 多机模式
+        export LOCAL_RANK=${LOCAL_RANK:-$(($RANK % $AVAILABLE_GPUS))}
+        export CUDA_VISIBLE_DEVICES=$LOCAL_RANK
+    fi
     
     echo "Running distributed training with:"
     echo "MASTER_ADDR: $MASTER_ADDR"
@@ -76,13 +80,9 @@ run_distributed() {
     echo "PET_NNODES: $PET_NNODES"
     echo "Available GPUs: $AVAILABLE_GPUS"
     
-    # 使用本地GPU的序号
-    export CUDA_VISIBLE_DEVICES=$LOCAL_RANK
-    
     # 获取当前脚本所在目录
     SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
     
-    # 使用完整路径运行Python脚本
     python ${SCRIPT_DIR}/dist_train.py \
         --distributed_mode multi_node \
         --batch_size $BATCH_SIZE \

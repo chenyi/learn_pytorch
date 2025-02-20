@@ -345,13 +345,15 @@ def main():
     world_size = int(os.environ.get('WORLD_SIZE', local_gpus))
     rank = int(os.environ.get('RANK', 0))
     
-    # 计算每个节点应该使用的GPU数量
-    gpus_per_node = world_size // int(os.environ.get('NUM_NODES', 1))
-    local_rank = rank % gpus_per_node  # 本地GPU编号
-    
     if args.distributed_mode in ['multi_gpu', 'multi_node']:
-        # 直接运行训练函数，不使用spawn
-        train(local_rank, world_size, args)
+        # 使用 spawn 自动启动多个进程
+        if os.environ.get('RANK') is None:  # 单机多卡模式
+            mp.spawn(train,
+                    args=(world_size, args),
+                    nprocs=world_size,
+                    join=True)
+        else:  # 多机多卡模式
+            train(rank, world_size, args)
     else:
         # 单GPU模式
         train(0, 1, args)
