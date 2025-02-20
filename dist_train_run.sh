@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# 获取脚本所在目录的绝对路径
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
 # 检查参数
 if [ $# -lt 1 ]; then
     echo "Usage: $0 {single|multi|distributed} [num_gpus|node_rank]"
@@ -19,16 +16,26 @@ PARAM=${2:-0}  # 第二个参数：multi模式下表示GPU数量，distributed�
 # 检查GPU数量
 AVAILABLE_GPUS=$(nvidia-smi --query-gpu=gpu_name --format=csv,noheader | wc -l)
 
-# 修改配置文件中的分布式模式
-update_config() {
-    local mode=$1
-    sed -i "s/distributed_mode: .*/distributed_mode: \"$mode\"/" "${SCRIPT_DIR}/dist_train_config.yaml"
-}
+# 基础训练参数
+BATCH_SIZE=128
+LEARNING_RATE=0.001
+EPOCHS=100
+WEIGHT_DECAY=0.0001
+PRINT_FREQ=50
+DATA_DIR="/mnt/data10/datasets"
+SAVE_DIR="/mnt/data10/model_checkpoints"
 
 # 单机单卡模式
 run_single_gpu() {
-    update_config "single_gpu"
-    CUDA_VISIBLE_DEVICES=0 python dist_train.py
+    CUDA_VISIBLE_DEVICES=0 python dist_train.py \
+        --distributed_mode single_gpu \
+        --batch_size $BATCH_SIZE \
+        --learning_rate $LEARNING_RATE \
+        --epochs $EPOCHS \
+        --weight_decay $WEIGHT_DECAY \
+        --print_freq $PRINT_FREQ \
+        --data_dir $DATA_DIR \
+        --save_dir $SAVE_DIR
 }
 
 # 单机多卡模式
@@ -39,24 +46,42 @@ run_multi_gpu() {
         exit 1
     fi
     
-    # 设置可见的GPU数量
-    CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((num_gpus-1)))
-    update_config "multi_gpu"
-    echo "Using GPUs: $CUDA_VISIBLE_DEVICES"
-    python dist_train.py
+    CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((num_gpus-1))) python dist_train.py \
+        --distributed_mode multi_gpu \
+        --batch_size $BATCH_SIZE \
+        --learning_rate $LEARNING_RATE \
+        --epochs $EPOCHS \
+        --weight_decay $WEIGHT_DECAY \
+        --print_freq $PRINT_FREQ \
+        --data_dir $DATA_DIR \
+        --save_dir $SAVE_DIR
 }
 
 # 多机多卡模式
 run_distributed() {
     local node_rank=$1
-    update_config "multi_node"
-    export MASTER_ADDR="192.168.1.100"  # 替换为实际的主节点IP
-    export MASTER_PORT="12355"
-    export WORLD_SIZE=$((AVAILABLE_GPUS * 2))  # 假设有2台机器，每台机器的GPU数量相同
-    export NODE_RANK=$node_rank
     
-    cd /mnt/data10/  # 添加这行，确保在正确的目录下运行
-    python dist_train.py
+    # PAI-DLC环境中已经设置：
+    # MASTER_ADDR (例如: dlc8014p3oyrw9hi-master-0)
+    # MASTER_PORT (例如: 23456)
+    # WORLD_SIZE  (总GPU数量)
+    # RANK        (当前进程的rank)
+    
+    echo "Running distributed training with:"
+    echo "MASTER_ADDR: $MASTER_ADDR"
+    echo "MASTER_PORT: $MASTER_PORT"
+    echo "WORLD_SIZE: $WORLD_SIZE"
+    echo "RANK: $RANK"
+    
+    python dist_train.py \
+        --distributed_mode multi_node \
+        --batch_size $BATCH_SIZE \
+        --learning_rate $LEARNING_RATE \
+        --epochs $EPOCHS \
+        --weight_decay $WEIGHT_DECAY \
+        --print_freq $PRINT_FREQ \
+        --data_dir $DATA_DIR \
+        --save_dir $SAVE_DIR
 }
 
 # 根据模式执行相应的命令
