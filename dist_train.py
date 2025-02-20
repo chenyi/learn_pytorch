@@ -242,9 +242,17 @@ def train(rank, world_size, args):
     # 设置分布式环境
     setup_distributed(rank, world_size, args)
     
-    # 创建模型
-    model = ConvNet().to(rank)
-    model = DDP(model, device_ids=[rank])
+    # 获取本地GPU编号
+    local_rank = int(os.environ.get('LOCAL_RANK', 0))
+    
+    print(f"Process rank {rank} using local GPU {local_rank}")
+    
+    # 使用local_rank而不是rank来指定GPU
+    device = torch.device(f'cuda:{local_rank}')
+    
+    # 创建模型并移动到对应的GPU
+    model = ConvNet().to(device)
+    model = DDP(model, device_ids=[local_rank])
     
     # 获取数据加载器
     train_loader, test_loader = get_cifar10_loaders(world_size, rank, args)
@@ -272,7 +280,7 @@ def train(rank, world_size, args):
         total = 0
         
         for batch_idx, (data, target) in enumerate(train_loader):
-            data, target = data.to(rank), target.to(rank)
+            data, target = data.to(device), target.to(device)
             optimizer.zero_grad()
             output = model(data)
             loss = criterion(output, target)
@@ -300,7 +308,7 @@ def train(rank, world_size, args):
         
         # 评估模型
         model.eval()
-        test_loss, test_acc = evaluate(model, test_loader, criterion, rank)
+        test_loss, test_acc = evaluate(model, test_loader, criterion, device)
         
         # 更新学习率
         scheduler.step(test_loss)
