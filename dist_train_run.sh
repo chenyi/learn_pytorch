@@ -46,6 +46,11 @@ run_multi_gpu() {
         exit 1
     fi
     
+    # 设置分布式训练需要的环境变量
+    export MASTER_ADDR="localhost"
+    export MASTER_PORT="12355"
+    export WORLD_SIZE=$num_gpus
+    
     CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((num_gpus-1))) python dist_train.py \
         --distributed_mode multi_gpu \
         --batch_size $BATCH_SIZE \

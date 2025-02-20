@@ -96,13 +96,19 @@ def parse_args():
 
 def setup_distributed(rank, world_size, args):
     """设置分布式训练环境"""
-    # 从环境变量获取配置
-    master_addr = os.environ.get('MASTER_ADDR')
-    master_port = os.environ.get('MASTER_PORT')
+    # 确保环境变量已设置
+    if not os.environ.get('MASTER_ADDR'):
+        os.environ['MASTER_ADDR'] = 'localhost'
+    if not os.environ.get('MASTER_PORT'):
+        os.environ['MASTER_PORT'] = '12355'
     
     # 在PAI-DLC环境中，使用环境变量中的RANK
     rank = int(os.environ.get('RANK', rank))
     world_size = int(os.environ.get('WORLD_SIZE', world_size))
+    
+    print(f"Initializing process group: rank={rank}, world_size={world_size}")
+    print(f"MASTER_ADDR={os.environ['MASTER_ADDR']}")
+    print(f"MASTER_PORT={os.environ['MASTER_PORT']}")
     
     # 初始化进程组
     dist.init_process_group(backend='nccl',
