@@ -38,55 +38,21 @@ run_single_gpu() {
         --save_dir $SAVE_DIR
 }
 
-# 单机多卡模式
-run_multi_gpu() {
-    local requested_gpus=$1
-    
-    # 在PAI-DLC环境中，优先使用环境变量中的配置
-    local num_gpus=${WORLD_SIZE:-$requested_gpus}  # 如果WORLD_SIZE存在就用它，否则用命令行参数
-    
-    if [ $num_gpus -gt $AVAILABLE_GPUS ]; then
-        echo "Error: Requested $num_gpus GPUs but only $AVAILABLE_GPUS available"
-        exit 1
-    fi
-    
-    # 设置分布式训练需要的环境变量
-    export MASTER_ADDR=${MASTER_ADDR:-"localhost"}
-    export MASTER_PORT=${MASTER_PORT:-"12355"}
-    export WORLD_SIZE=$num_gpus
-    
-    echo "Running multi-GPU training with:"
-    echo "Number of GPUs: $num_gpus"
-    echo "MASTER_ADDR: $MASTER_ADDR"
-    echo "MASTER_PORT: $MASTER_PORT"
-    echo "WORLD_SIZE: $WORLD_SIZE"
-    
-    CUDA_VISIBLE_DEVICES=$(seq -s, 0 $((num_gpus-1))) python dist_train.py \
-        --distributed_mode multi_gpu \
-        --batch_size $BATCH_SIZE \
-        --learning_rate $LEARNING_RATE \
-        --epochs $EPOCHS \
-        --weight_decay $WEIGHT_DECAY \
-        --print_freq $PRINT_FREQ \
-        --data_dir $DATA_DIR \
-        --save_dir $SAVE_DIR
-}
-
-# 多机多卡模式
+# 多机多卡/单机多卡模式统一处理
 run_distributed() {
     local node_rank=$1
     
-    # PAI-DLC环境中已经设置：
-    # MASTER_ADDR (例如: dlc8014p3oyrw9hi-master-0)
-    # MASTER_PORT (例如: 23456)
-    # WORLD_SIZE  (总GPU数量)
-    # RANK        (当前进程的rank)
-    
+    # 获取环境信息
     echo "Running distributed training with:"
     echo "MASTER_ADDR: $MASTER_ADDR"
     echo "MASTER_PORT: $MASTER_PORT"
     echo "WORLD_SIZE: $WORLD_SIZE"
     echo "RANK: $RANK"
+    echo "LOCAL_RANK: $LOCAL_RANK"
+    echo "NUM_NODES: $NUM_NODES"
+    
+    # 使用本地GPU的序号
+    export CUDA_VISIBLE_DEVICES=$LOCAL_RANK
     
     python dist_train.py \
         --distributed_mode multi_node \
@@ -99,19 +65,12 @@ run_distributed() {
         --save_dir $SAVE_DIR
 }
 
-# 根据模式执行相应的命令
+# 简化命令处理
 case "$MODE" in
     "single")
         run_single_gpu
         ;;
-    "multi")
-        if [ -z "$PARAM" ]; then
-            echo "Please specify number of GPUs for multi-GPU training"
-            exit 1
-        fi
-        run_multi_gpu $PARAM
-        ;;
-    "distributed")
+    "multi"|"distributed")
         run_distributed $PARAM
         ;;
     *)

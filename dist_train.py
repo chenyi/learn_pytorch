@@ -328,18 +328,23 @@ def train(rank, world_size, args):
 def main():
     args = parse_args()
     
-    # 根据配置确定使用的GPU数量
-    world_size = torch.cuda.device_count()
-    if args.distributed_mode == 'single_gpu':
-        world_size = 1
+    # 获取本地GPU数量
+    local_gpus = torch.cuda.device_count()
     
-    if world_size > 0:
-        mp.spawn(train,
-                args=(world_size, args),
-                nprocs=world_size,
-                join=True)
+    # 从环境变量获取分布式信息
+    world_size = int(os.environ.get('WORLD_SIZE', local_gpus))
+    rank = int(os.environ.get('RANK', 0))
+    
+    # 计算每个节点应该使用的GPU数量
+    gpus_per_node = world_size // int(os.environ.get('NUM_NODES', 1))
+    local_rank = rank % gpus_per_node  # 本地GPU编号
+    
+    if args.distributed_mode in ['multi_gpu', 'multi_node']:
+        # 直接运行训练函数，不使用spawn
+        train(local_rank, world_size, args)
     else:
-        print("No GPU available!")
+        # 单GPU模式
+        train(0, 1, args)
 
 if __name__ == "__main__":
     main() 
