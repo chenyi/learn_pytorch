@@ -25,9 +25,13 @@ PRINT_FREQ=50
 DATA_DIR="/mnt/data10/datasets"
 SAVE_DIR="/mnt/data10/model_checkpoints"
 
+# 设置工作目录
+WORK_DIR="/mnt/data10/chenyi/learn_pytorch"
+cd $WORK_DIR
+
 # 单机单卡模式
 run_single_gpu() {
-    CUDA_VISIBLE_DEVICES=0 python dist_train.py \
+    CUDA_VISIBLE_DEVICES=0 python ${WORK_DIR}/dist_train.py \
         --distributed_mode single_gpu \
         --batch_size $BATCH_SIZE \
         --learning_rate $LEARNING_RATE \
@@ -42,7 +46,10 @@ run_single_gpu() {
 run_distributed() {
     local node_rank=$1
     
-    # 获取环境信息
+    # 设置缺失的环境变量
+    export NUM_NODES=${PET_NNODES:-1}  # 使用PET_NNODES，如果不存在则默认为1
+    export LOCAL_RANK=${LOCAL_RANK:-$(($RANK % $AVAILABLE_GPUS))}
+    
     echo "Running distributed training with:"
     echo "MASTER_ADDR: $MASTER_ADDR"
     echo "MASTER_PORT: $MASTER_PORT"
@@ -50,11 +57,15 @@ run_distributed() {
     echo "RANK: $RANK"
     echo "LOCAL_RANK: $LOCAL_RANK"
     echo "NUM_NODES: $NUM_NODES"
+    echo "PET_NNODES: $PET_NNODES"
+    echo "Available GPUs: $AVAILABLE_GPUS"
+    echo "Working Directory: $WORK_DIR"
     
     # 使用本地GPU的序号
     export CUDA_VISIBLE_DEVICES=$LOCAL_RANK
     
-    python dist_train.py \
+    # 使用完整路径运行Python脚本
+    python ${WORK_DIR}/dist_train.py \
         --distributed_mode multi_node \
         --batch_size $BATCH_SIZE \
         --learning_rate $LEARNING_RATE \
