@@ -102,13 +102,18 @@ def train(rank, world_size, args):
 def main():
     args = parse_args()
     
-    # 从环境变量获取分布式信息
+    # 直接从环境变量获取 LOCAL_RANK
     local_rank = int(os.environ.get('LOCAL_RANK', 0))
-    rank = int(os.environ.get('RANK', 0))
-    world_size = int(os.environ.get('WORLD_SIZE', 1))
     
-    # 直接调用训练函数
-    train(rank, world_size, args)
+    # 设置当前设备
+    device = torch.device(f'cuda:{local_rank}')
+    torch.cuda.set_device(device)
+    
+    # 初始化分布式环境
+    dist.init_process_group(backend='nccl')
+    
+    # 直接调用训练函数，使用 local_rank
+    train(local_rank, dist.get_world_size(), args)
 
 if __name__ == "__main__":
     main() 
